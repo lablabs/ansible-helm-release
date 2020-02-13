@@ -1,2 +1,2 @@
 ---
-# vars
+helm_local_charts_root_dir: "{{ ansible_env.HOME}}/.helm_local_repos"

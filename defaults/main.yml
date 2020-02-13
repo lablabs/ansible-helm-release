@@ -3,7 +3,6 @@ helm_repos:
  - name: stable
    url: https://kubernetes-charts.storage.googleapis.com/
 
-helm_local_charts_root_dir: "{{ ansible_env.HOME}}/.helm_local_repos"
 helm_releases: []
 #    - name:
 #      chart:
@@ -14,10 +13,4 @@ helm_releases: []
 #      wait: true
 #      timeout: 999s
 #      debug: true
-#      config_values:
-#    - name:
-#      git_repo:
-#      chart_base_path:
-#      chart_version: 
-#      namespace:
-#      config_values:
+#      config_values: {}
