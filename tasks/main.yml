@@ -1,0 +1,46 @@
+---
+- name: Install python pip package
+  package:
+    name: python3-pip
+    state: present
+    
+- name: Install python pip requirements
+  pip:
+    name:
+      - openshift >= 0.6
+      - PyYAML >= 3.11
+
+- name: Get all repos
+  register: helm_registered_repos
+  shell: "helm repo list | grep -v NAME | awk '{print $1}'"
+  changed_when: helm_registered_repos.rc == 0
+
+- name: Install repos
+  include_tasks: install-repo.yml
+  when: ( repo.state is not defined ) or ( repo.state == 'present')
+  loop: '{{ helm_repos | default([]) }}'
+  loop_control:
+    loop_var: repo
+
+- name: Remove repos
+  include_tasks: remove-repo.yml
+  when: ( repo.state is defined ) and ( repo.state == 'absent')
+  loop: '{{ helm_repos | default([]) }}'
+  loop_control:
+    loop_var: repo
+
+- meta: flush_handlers
+
+- name: Install helm releases
+  include_tasks: install-release.yml
+  when: ( release.state is not defined ) or ( release.state == 'present')
+  loop: '{{ helm_releases | default([]) }}'
+  loop_control:
+    loop_var: release
+
+- name: Remove helm releases
+  include_tasks: remove-release.yml
+  when: ( release.state is defined ) and ( release.state == 'absent')
+  loop: '{{ helm_releases | default([]) }}'
+  loop_control:
+    loop_var: release

@@ -1,0 +1,33 @@
+galaxy_info:
+  role_name: helm-release
+  author: Martin Dojcak
+  description: Install chart releases using helm 3
+  company: Labyrinth Labs
+
+  license: GPLv2
+
+  min_ansible_version: 2.5
+
+  platforms:
+  - name: EL
+    versions:
+    - all
+  - name: Fedora
+    versions:
+    - all
+  - name: Ubuntu
+    versions:
+    - all
+  - name: Debian
+    versions:
+    - jessie
+  - name: Alpine
+    versions:
+    - all
+  - name: macOS
+    versions:
+    - all
+
+  galaxy_tags:
+    - kubernetes
+    - helm

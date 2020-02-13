@@ -1,0 +1,37 @@
+---
+- name: Fail "{{ release.name }}" chart or git_repo is not defined
+  fail:
+    msg: You must set one of chart or git_repo fields
+  when: release.chart is not defined and release.git_repo is not defined
+
+- name: Fail "{{ release.name }}" chart and git_repo are both defined
+  fail:
+    msg: You must set only one of chart or git_repo fields. Not both
+  when: chart.chart is defined and chart.git_repo is defined
+
+- name: Set helm cmd namespace for "{{release.name}}"
+  set_fact:
+    helm_release_namespace: " -n {{ release.namespace }}"
+  when: release.namespace is defined
+
+- name: Check if installed for "{{ release.name }}"
+  command: helm status{{ helm_release_namespace }} {{ release.name }}
+  register: helm_status_cmd
+  ignore_errors: True
+  changed_when: False
+
+- name: Set vars for "{{ release.name }}"
+  set_fact:
+    release_installed: "{{ helm_status_cmd.rc == 0 }}"
+
+- name: Uninstall release for "{{ release.name }}"
+  command: helm uninstall {{ release.name }}{{ helm_release_namespace | default('') }}
+  register: result
+  changed_when: result.rc == 0
+  when: release_installed
+
+- name: Remove local repo for "{{ release.name }}"
+  file:
+    state: absent
+    path: "{{ helm_local_charts_root_dir }}/{{ release.name }}-{{ release.chart_version | default('master')}}"
+  when: release.git_repo is defined

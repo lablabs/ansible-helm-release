@@ -1,0 +1,131 @@
+---
+
+- name: Fail "{{ release.name }}" chart or git_repo is not defined
+  fail:
+    msg: You must set one of chart or git_repo fields
+  when: release.chart is not defined and release.git_repo is not defined
+
+- name: Fail "{{ release.name }}" chart and git_repo are both defined
+  fail:
+    msg: You must set only one of chart or git_repo fields. Not both
+  when: release.chart is defined and release.git_repo is defined
+
+- name: Fail "{{ release.name }}" git_repo is set but not chart_base_path
+  fail:
+    msg: If git_repo is set, chart_base_path must be set
+  when: release.chart_base_path is not defined and release.git_repo is defined
+
+- name: Set helm cmd namespace for "{{release.name}}"
+  set_fact:
+    helm_release_namespace: '{{ " -n "+release.namespace  if release.namespace is defined else "" }}'
+
+- name: Check release "{{release.name}}" status
+  command: helm status{{ helm_release_namespace }} {{ release.name }}
+  register: helm_status_cmd
+  ignore_errors: True
+  changed_when: False
+
+- name: Set vars "{{release.name}}"
+  set_fact:
+    release_values: "{{ release.config_values | default({}) }}"
+    release_installed: "{{ helm_status_cmd.rc == 0 }}"
+
+- name: Set chart configuration filename for "{{release.name}}"
+  set_fact:
+    helm_release_values: "/tmp/{{ release.name }}/values.yaml"
+  when: release_values.keys() | length > 0
+
+
+- name: Create configuration YAML values for "{{release.name}}"
+  blockinfile:
+    path: "{{ helm_release_values }}"
+    create: yes
+    block: "{{ release_values | to_nice_yaml(width=80, indent=2) }}"
+  when: release_values.keys() | length > 0
+
+- name: Set helm cmd config option for "{{ release.name }}"
+  set_fact:
+    helm_release_options: "{{ ' -f '+helm_release_values if release_values.keys() | length > 0  else '' }}"
+
+- name: Set helm cmd chart_version for "{{ release.name }}"
+  set_fact:
+    helm_chart_version: "{{ ' --version '+ (release.chart_version | string) if release.chart_version is defined else '' }}"
+
+- name: Set helm cmd atomic for "{{ release.name }}"
+  set_fact:
+    helm_release_atomic: "{{ ' --atomic ' if release.atomic is defined and release.atomic else '' }}"
+
+- name: Set helm cmd wait for "{{ release.name }}"
+  set_fact:
+    helm_release_wait: "{{ ' --wait ' if release.wait is defined and release.wait else '' }}"
+
+- name: Set helm cmd timeout for "{{ release.name }}"
+  set_fact:
+    helm_release_timeout: "{{ ' --timeout '+ (release.timeout | string) if release.timeout is defined else '' }}"
+
+- name: Set helm cmd recreate for "{{ release.name }}"
+  set_fact:
+    helm_release_recreate: "{{ ' --atomic ' if release.force is defined and release.force else '' }}"
+
+
+- name: Create namespace if not exists for "{{release.name}}"
+  k8s:
+    api_version: v1
+    kind: Namespace
+    name: "{{ release.namespace }}"
+    state: present
+  when: release.namespace is defined
+
+- name: Set chart base directory when using git_repo for "{{release.name}}"
+  set_fact:
+    chart_to_install_base: "{{ helm_local_charts_root_dir }}/{{ release.name }}-{{ release.chart_version | default('master')}}"
+  when: release.git_repo is defined
+
+- name: Set chart directory to install chart from when using git_repo for {{release.name}}
+  set_fact:
+    chart_to_install: "{{ chart_to_install_base }}/{{ release.chart_base_path }}"
+  when: release.git_repo is defined
+
+- name: Download chart from URL
+  git:
+    repo: "{{ release.git_repo }}"
+    dest: "{{ chart_to_install_base }}"
+  when: release.git_repo is defined
+
+
+- name: Set chart name to specified release.chart field for "{{release.name}}"
+  set_fact:
+    chart_to_install: "{{ release.chart }}"
+  when: release.chart is defined
+
+- name: Install release "{{ release.name }}" from chart "{{ release.chart }}"
+  command: >
+    helm install {{ release.name }} {{ chart_to_install }}
+    {{ helm_release_options }}
+    {{ helm_chart_version }}{{ helm_release_namespace | default('') }}
+    {{ helm_release_atomic }}{{ helm_release_wait }}{{ helm_release_timeout }}{{ helm_release_recreate }}
+    --debug
+  register: result
+  changed_when: result.rc == 0
+  when: not release_installed and not release.upgrade
+
+- name: Upgrade with install release "{{ release.name }}" from chart "{{ release.chart }}"
+  command: >
+    helm upgrade {{ release.name }} {{ chart_to_install }}
+    {{ helm_release_options }}
+    {{ helm_chart_version }}{{ helm_release_namespace | default('') }} --install
+    {{ helm_release_atomic }}{{ helm_release_wait }}{{ helm_release_timeout }}{{ helm_release_recreate }}
+    --debug
+  register: result
+  changed_when: result.rc == 0
+  when: release.upgrade is defined and release.upgrade
+
+- name: Helm debug output
+  debug: 
+    var: result
+  when: release.debug is defined and release.debug
+
+- name: Remove configuration YAML file for {{release.name}}
+  file:
+    path: "/tmp/{{ release.name }}/"
+    state: absent

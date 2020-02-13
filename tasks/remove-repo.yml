@@ -1,0 +1,11 @@
+- name: Fail helm repository name is not defined
+  fail:
+    msg: You must set repository name
+  when: repo.name is not defined and repo.name|length > 0
+
+- name: Add helm repository {{ repo.name }} (repo.url)
+  command: helm repo remove {{ repo.name }}
+  register: result
+  changed_when: result.rc == 0
+  when: repo.name in helm_registered_repos.stdout_lines
+  notify: helm_repo_update

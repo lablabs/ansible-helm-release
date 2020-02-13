@@ -1,0 +1,4 @@
+---
+- name: Update repos
+  command: helm repo update
+  listen: "helm_repo_update"

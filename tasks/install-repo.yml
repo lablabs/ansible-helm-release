@@ -1,0 +1,20 @@
+- name: Fail helm repository name is not defined
+  fail:
+    msg: You must set repository name
+  when: repo.name is not defined and repo.name|length > 0
+
+- name: Fail helm repository "{{ repo.name }}" url is not defined
+  fail:
+    msg: You must set repository url
+  when: repo.url is not defined or repo.url is not regex("^(https|http):\/\/\S+")
+
+- name: Set helm cmd to skip the CA verification for repository {{ repo.name }} ({{ repo.url }})
+  set_fact:
+    helm_repo_tls_verify_skip: '{{ " --insecure-skip-tls-verify " if repo.tls_verify is defined and repo.tls_verify else "" }}'
+
+- name: Add helm repository {{ repo.name }} ({{ repo.url }})
+  command: helm repo add {{ helm_repo_tls_verify_skip }} {{ repo.name }} {{ repo.url }}
+  register: result
+  changed_when: result.rc == 0
+  when: repo.name not in helm_registered_repos.stdout_lines
+  notify: helm_repo_update
