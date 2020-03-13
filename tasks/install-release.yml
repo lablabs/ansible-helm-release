@@ -25,11 +25,17 @@
   failed_when: 0
   changed_when: False
 
+- name: Check initial release "{{ release.name }}" status
+  shell: helm status{{ helm_release_namespace }} {{ release.name }} --revision 1 | grep failed
+  register: helm_status_init_failed
+  failed_when: 0
   changed_when: False
 
 - name: Set vars "{{ release.name }}"
   set_fact:
     release_values: "{{ release.config_values | default({}) }}"
+    release_installed: "{{ helm_status_installed.rc == 0 }}"
+    release_init_failed: "{{ helm_status_init_failed and helm_status_init_failed.rc == 0 }}"
 
 - name: Set chart configuration filename for "{{release.name}}"
   set_fact:
@@ -92,11 +98,17 @@
     dest: "{{ chart_to_install_base }}"
   when: release.git_repo is defined
 
-
 - name: Set chart name to specified release.chart field for "{{release.name}}"
   set_fact:
     chart_to_install: "{{ release.chart }}"
   when: release.chart is defined
+
+- name: Remove failed initial release "{{ release.name }}" from chart "{{ release.chart }}"
+  command: >
+    helm uninstall {{ release.name }} {{ helm_release_namespace | default('') }}
+  register: result
+  changed_when: result.rc == 0
+  when: release_init_failed
 
 - name: Install release "{{ release.name }}" from chart "{{ release.chart }}"
   command: >
